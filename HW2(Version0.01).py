@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+import math 
+import pandas as pd 
+import numpy as np
+import matplotlib.pyplot as plt
+from sympy import symbols, Function, Eq, dsolve, exp, solve
+
 """
 Nicolino Primavera 
 FEM for Fluid Flow and FSI Interactions
@@ -14,22 +20,16 @@ Pe number represents the ratio of advection to diffusion
 Use numerical inegration or Gauss quadrature-based integration (Gauss integration)
 
 Solve: 
-a. Choose at least four different grids for a range of cell Peclet numbers (Pe) and demonstrate that oscillatory solutions are obtained when Pe > 2
-b. Compare the solutions for Pe < 2 against the analytical solution 
+    a. Choose at least four different grids for a range of cell Peclet numbers (Pe) and demonstrate that oscillatory solutions are obtained when Pe > 2
+    b. Compare the solutions for Pe < 2 against the analytical solution 
 """
 
 print("\nStarting Program...\n")
 
-import math 
-import pandas as pd 
-import numpy as np
-import matplotlib.pyplot as plt
-from sympy import symbols, Function, Eq, dsolve, exp, solve
-
 # Parameters
 a = 1.0                                                # Advection speed
 k = 0.05                                               # Diffusion coefficient
-#Pe = (a*h)/k = 20*h                                   # Cell peclet number 
+#Pe = (a*h)/k = 20*h                                   # Cell peclet number (formula)
 Pe_values = [0.1, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7]  # Peclet numbers 
 #h = (Pe*k)/a                                          # Grid/cell spacing - use uniform spacing 
 
@@ -221,3 +221,18 @@ plt.plot(x_values, u_values, label=r"Exact Solution", color="purple")           
 plt.legend()
 plt.grid(True)
 plt.show()
+
+"""
+Nicolino Primavera 
+FEM for Fluid Flow and FSI Interactions
+Assignment 2
+11/8/24 
+
+Solve the same problem using the Exact Advection Diffusion (EAD) and streamwise upwind Petrov-Galerkin (SUPG) methods
+    - use the same grids for the range of Pe numbers
+    - compare the results against the exact solution
+    - evaluate the effect of using higher-order (quadratic) elements
+    - use element point of view to construct the stiffness matrix and load vector
+    - write an assembly routine to assemble global stiffness matrix and load vector (already did previously)
+    - use numerical integration at the element level (e.g. Gauss quadrature-based integration)
+"""
