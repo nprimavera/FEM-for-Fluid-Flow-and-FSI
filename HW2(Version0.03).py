@@ -48,54 +48,80 @@ class GFEM_AdvectionDiffusionSolver:
             raise ValueError("Only 2-point and 3-point quadrature implemented.")
 
     # Local Stiffness Matrix 
-    def local_stiffness_matrix(self, h, Pe):
-        K_local = np.zeros((3, 3))              # Local stiffness matrix for quadratic elements
-        xi, w = self.gauss_quadrature(3)        # Use 3-point Gauss quadrature for higher accuracy
-        
-        # Loop over Gauss points
-        for i in range(3):
-            # Calculate shape function derivatives and their values at Gauss points
-            # Linear shape function derivatives for quadratic elements
-            N_prime = np.array([-(1 - xi[i])/(2*h), (1 + xi[i])/(2*h), (1 - xi[i])/(2*h)])  # Shape function derivatives
-            
-            # Calculate local stiffness matrix entries
-            for j in range(3):
-                K_local += w[i] * (N_prime[i] * N_prime[j]) * h  # Assemble K_local based on advection-diffusion equation
-            
-        return K_local
+    def local_stiffness_matrix(self, h, Pe, n_points):
+        # Two point gauss quadrature
+        if n_points == 2:
+            K_local = np.zeros((2, 2))              # Initialize local stiffness matrix
+            print(f"\nK_local for two point gauss quadrature: \n {K_local}\n")
+            xi, w = self.gauss_quadrature(2)        # Gauss quadrature points (xi) , weights (w)
+            # Nested for loops to compute and fill out the local stiffness matrices 
+            for i in range(2):
+                for j in range(2):
+                    diffusion = (1/h) * (1 if i == j else -1)                                       # Compute diffusion terms 
+                    advection = Pe * w[i] * (0.5 * (1 - xi[i]) if i == 0 else 0.5 * (1 + xi[i]))    # Compute advection terms 
+                    K_local[i, j] += diffusion + advection                                          # Append local stiffness matrices 
+            return K_local
+        # Quadratic (3) gauss quadrature 
+        else:
+            K_local = np.zeros((3, 3))              # Local stiffness matrix for quadratic elements
+            print(f"\nK_local for quadratic gauss quadrature: \n {K_local}\n")
+            xi, w = self.gauss_quadrature(3)        # Use 3-point Gauss quadrature for higher accuracy
+            # Nested for loops to compute local stiffness matrix 
+            #for i in range(3):
+            #    for j in range(3):
+                    
+            return K_local
 
     # Global Stiffness Matrix 
     def assemble_global_matrices(self, N, h, Pe, element_order):
-        K_global = np.zeros((2 * (N - 1) + 1, 2 * (N - 1) + 1))  # Adjust global matrix size for quadratic
-        for e in range(N - 1):  # Iterate over elements
-            K_local = self.local_stiffness_matrix(h, Pe)  # Local stiffness matrix
-            K_global[2 * e: 2 * e + 3, 2 * e: 2 * e + 3] += K_local   # Place local matrix into the global matrix
+        if element_order == 1:  # Linear elements
+            K_global = np.zeros((N, N))  # Size for linear elements
+            for e in range(N - 1):
+                K_local = self.local_stiffness_matrix(h, Pe)  # For linear elements (2x2)
+                K_global[e:e + 2, e:e + 2] += K_local
+        elif element_order == 2:  # Quadratic elements
+            K_global = np.zeros((2 * (N - 1) + 1, 2 * (N - 1) + 1))  # Size for quadratic elements
+            for e in range(N - 1):
+                K_local = self.local_stiffness_matrix(h, Pe)  # For quadratic elements (3x3)
+                K_global[2 * e: 2 * e + 3, 2 * e: 2 * e + 3] += K_local
+        else:
+            raise ValueError("Unsupported element order. Use 1 for linear or 2 for quadratic.")
+        
         return K_global
 
     # Compute Cell Peclet Numbers 
     def solve(self, element_order=1):
+        print(f"\nSolving using Galerkin FEM with element order {element_order}.\n")
         for Pe in self.Pe_values:
-            h = (Pe * self.k) / self.a                               # Calculate grid spacing
-            N_no = int((self.x_1 - self.x_0) / h) + 1                # Number of nodes
-            x = np.linspace(self.x_0, self.x_1, 2 * (N_no - 1) + 1)  # Quadratic nodal positions
-            u = np.zeros(2 * (N_no - 1) + 1)                         # Initialize solution vector for quadratic elements
+            h = (Pe * self.k) / self.a
+            N_no = int((self.x_1 - self.x_0) / h) + 1
+            if element_order == 1:
+                x = np.linspace(self.x_0, self.x_1, N_no)  # Linear nodes
+                u = np.zeros(N_no)  # Solution vector for linear elements
+            elif element_order == 2:
+                x = np.linspace(self.x_0, self.x_1, 2 * (N_no - 1) + 1)  # Quadratic nodes
+                u = np.zeros(2 * (N_no - 1) + 1)  # Solution vector for quadratic elements
             
-            # Assemble the global stiffness matrix
             K_global = self.assemble_global_matrices(N_no, h, Pe, element_order)
-            
+
             # Apply boundary conditions
-            u[0] = self.u_0         # Dirichlet boundary condition at x=0
-            u[-1] = self.u_1        # Dirichlet boundary condition at x=L
-            K_global[0, :] = 0      # Zero out the first row
-            K_global[0, 0] = 1      # Set the diagonal element to 1 for u[0]
-            K_global[-1, :] = 0     # Zero out the last row
-            K_global[-1, -1] = 1    # Set the diagonal element to 1 for u[-1]
-            
-            # Solve the system of equations
-            u = np.linalg.solve(K_global, u)
-            
-            # Plotting the results
-            plt.plot(x, u, label=f'Pe = {Pe}')  # Plot the current solution
+            u[0] = self.u_0         # Dirichlet BC at x=0
+            u[-1] = self.u_1        # Dirichlet BC at x=L
+            K_global[0, :] = 0      # Set the first row to 0
+            K_global[0, 0] = 1      # Set the first diagonal element to 1
+            K_global[-1, :] = 0     # Set the last row to 0
+            K_global[-1, -1] = 1    # Set the last diagonal element to 1
+
+            # Debugging: Check matrix and vector sizes before solving
+            print(f"\nK_global shape: {K_global.shape}, u shape: {u.shape}\n")
+
+            try:
+                u = np.linalg.solve(K_global, u)
+            except np.linalg.LinAlgError as e:
+                print(f"Error solving linear system for Pe = {Pe}: {e}")
+                continue
+
+            plt.plot(x, u, label=f'Pe = {Pe}')
 
         # Plot analytical solution
         x_analytical = np.linspace(self.x_0, self.x_1, 100)
@@ -118,40 +144,36 @@ class GFEM_AdvectionDiffusionSolver:
         u_values = C1_value * (1 - np.exp(20 * x_values))  # Exact solution for each x value
         return x_values, u_values
 
-"""
-Nicolino Primavera 
-FEM for Fluid Flow and FSI Interactions
-Assignment 2
-11/8/24 
+    """
+    Nicolino Primavera 
+    FEM for Fluid Flow and FSI Interactions
+    Assignment 2
+    11/8/24 
 
-Solve the same problem using the Exact Advection Diffusion (EAD) and streamwise upwind Petrov-Galerkin (SUPG) methods
-    - use the same grids for the range of Pe numbers
-    - compare the results against the exact solution
-    - evaluate the effect of using higher-order (quadratic) elements
-    - use element point of view to construct the stiffness matrix and load vector
-    - write an assembly routine to assemble global stiffness matrix and load vector (already did previously)
-    - use numerical integration at the element level (e.g. Gauss quadrature-based integration)
-"""
+    Solve the same problem using the Exact Advection Diffusion (EAD) and streamwise upwind Petrov-Galerkin (SUPG) methods
+        - use the same grids for the range of Pe numbers
+        - compare the results against the exact solution
+        - evaluate the effect of using higher-order (quadratic) elements
+        - use element point of view to construct the stiffness matrix and load vector
+        - write an assembly routine to assemble global stiffness matrix and load vector (already did previously)
+        - use numerical integration at the element level (e.g. Gauss quadrature-based integration)
+    """
 
-# EAD Solver
+# EAD method
 class EAD_AdvectionDiffusionSolver(GFEM_AdvectionDiffusionSolver):
-    """
-    Solve ADE using the Exact Advection Diffusion method.
-    """
+    # Local Stiffness Matrix 
     def local_stiffness_matrix(self, h, Pe, element_order=1):
         K_local = super().local_stiffness_matrix(h, Pe, element_order)  # Use parent class method
         # EAD-specific modification (if applicable)
         return K_local
-
+    # Compute using EAD method
     def solve(self, element_order=1):
         print("\nSolving with EAD Method\n")
         super().solve(element_order)  # Call the parent's solve method
 
-# SUPG Solver
+# SUPG method
 class SUPG_AdvectionDiffusionSolver(GFEM_AdvectionDiffusionSolver):
-    """
-    Solve ADE using Streamline Upwind Petrov-Galerkin (SUPG) method.
-    """
+    # Local Stiffness Matrix
     def local_stiffness_matrix(self, h, Pe, element_order=1):
         K_local = super().local_stiffness_matrix(h, Pe, element_order)  # Use parent class method
         # SUPG-specific modification (e.g., stabilization term addition)
@@ -160,7 +182,7 @@ class SUPG_AdvectionDiffusionSolver(GFEM_AdvectionDiffusionSolver):
                 stabilization = Pe * 0.1  # Example stabilization term for SUPG
                 K_local[i, j] += stabilization  # Add stabilization to stiffness matrix entry
         return K_local
-
+    # Compute using SUPG method
     def solve(self, element_order=1):
         print("\nSolving with SUPG Method\n")
         super().solve(element_order)  # Call the parent's solve method
@@ -171,14 +193,14 @@ Pe_values = [0.1, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7]
 # Solve using Galerkin FEM with quadratic elements as a base case
 print("\nStarting Galerkin FEM (Quadratic Elements)...\n")
 gfem_solver = GFEM_AdvectionDiffusionSolver(Pe_values)
-gfem_solver.solve(element_order=2)  # Use quadratic elements
+gfem_solver.solve(element_order=1)  # Use linear elements
 
 # Solve using EAD method
 print("\nStarting EAD method...\n")
 ead_solver = EAD_AdvectionDiffusionSolver(Pe_values)
-ead_solver.solve(element_order=2)  # Use quadratic elements
+#ead_solver.solve(element_order=2)  # Use quadratic elements
 
 # Solve using SUPG method
 print("\nStarting SUPG method...\n")
 supg_solver = SUPG_AdvectionDiffusionSolver(Pe_values)
-supg_solver.solve(element_order=2)  # Use quadratic elements
+#supg_solver.solve(element_order=2)  # Use quadratic elements
