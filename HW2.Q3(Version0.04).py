@@ -82,10 +82,9 @@ u = Function(V)
 fig, ax = plt.subplots()
 plt.xlabel("x")
 plt.ylabel("y")
-#ax.set_title(f"Unsteady Diffusion Problem Solution")
-#u_array = u_initial.compute_vertex_values(mesh).reshape((51, 51))  # Converts FEniCS function to numpy array for plotting
-img = ax.imshow(u_array, extent=[0, domain_length, 0, domain_length], origin="lower", vmin=0, vmax=10, cmap="viridis")
-plt.colorbar(img, ax=ax)
+u_array = u_initial.compute_vertex_values(mesh).reshape((51, 51))  # Converts FEniCS function to numpy array for plotting
+img = ax.imshow(u_array, extent=[0, domain_length, 0, domain_length], origin="lower", vmin=0, vmax=10, cmap="viridis")    # Plots the solution during the simulation
+plt.colorbar(img, ax=ax)    # Plots the color bar next to the graph for reference
 
 # Parameters
 T = 200.0                           # Final time
@@ -94,15 +93,15 @@ number_of_time_steps = int(T/dt)    # Time steps
 
 # Update function for animation
 def update(n):
-    global t
-    t += dt
-    solve(a == L, u, bcs)
-    u_initial.assign(u)
+    global t                        # Time is a global variable 
+    t += dt                         # Increment the time 
+    solve(a == L, u, bcs)           # Solve the weak form
+    u_initial.assign(u)             # Sets current solution
     
     # Update the image with new data
-    u_array = u.compute_vertex_values(mesh).reshape((51, 51))
-    img.set_data(u_array)
-    ax.set_title(f"Unsteady Diffusion Solution at t = {T:.2f}")
+    u_array = u.compute_vertex_values(mesh).reshape((51, 51))       # Update the array 
+    img.set_data(u_array)                                           # Update the plot/simulation
+    ax.set_title(f"Unsteady Diffusion Solution at t = {T:.2f}")     # Title 
 
 # Create the animation
 ani = FuncAnimation(fig, update, frames=number_of_time_steps, interval=100)
