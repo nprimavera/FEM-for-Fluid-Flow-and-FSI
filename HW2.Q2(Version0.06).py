@@ -105,14 +105,10 @@ def gauss_quadrature(n_points):
     Increase the number of quadrature points to improve accuracy of if integrating a more complex function
     """
     # Gauss Quadrature Rule for Numerical Integration 
-    if n_points == 2:
-        return np.array([-1/np.sqrt(3), 1/np.sqrt(3)]), np.array([1, 1])
-    elif n_points == 3:
-        xi = np.array([-np.sqrt(3/5), 0, np.sqrt(3/5)])
-        w = np.array([5/9, 8/9, 5/9])
-        return xi, w
+    if n_points == 2:                                                       # 2-point quadrature 
+        return np.array([-1/np.sqrt(3), 1/np.sqrt(3)]), np.array([1, 1])    # Quadrature points and weights 
     else:
-        raise ValueError("Only 2 and 3-point quadrature implemented.")
+        raise ValueError("Only 2-point quadrature implemented.")
 
 # Stiffness Matrix 
 def local_stiffness_matrix(h, Pe):
@@ -256,14 +252,12 @@ Solve the same problem using the Exact Advection Diffusion (EAD) and streamwise 
 
 # Gauss Quadrature
 def gauss_quadrature(n_points):
-    if n_points == 2:
-        return np.array([-1/np.sqrt(3), 1/np.sqrt(3)]), np.array([1, 1])
-    elif n_points == 3:
+    if n_points == 3:
         xi = np.array([-np.sqrt(3/5), 0, np.sqrt(3/5)])
         w = np.array([5/9, 8/9, 5/9])
         return xi, w
     else:
-        raise ValueError("Only 2 and 3-point quadrature implemented.")
+        raise ValueError("Only 3-point quadrature implemented.")
 
 # Define higher-order (quadratic) basis functions for EAD and SUPG methods
 def quadratic_shape_functions(xi): 
@@ -290,8 +284,9 @@ def local_stiffness_matrix_quadratic(h, Pe, method="Galerkin"):
                 diffusion = (k / h) * dN_dx[i] * dN_dx[j] * w[p]    # Diffusion term
                 
                 advection = a * N[i] * dN_dx[j] * w[p]              # Advection term with SUPG stabilization
+
+                # Add stabilization term if SUPG is selected
                 if method == "SUPG" and Pe > 2:
-                    # Add stabilization term if SUPG is selected
                     tau_SUPG = 0.5 * h / a                          # SUPG stabilization parameter
                     stabilization = tau_SUPG * dN_dx[i] * dN_dx[j]  # SUPG stabilization term
                 else:
@@ -317,7 +312,9 @@ def load_vector_quadratic(h):
 def assemble_global_matrices_quadratic(N, h, Pe, method="Galerkin"):
     
     K_global = np.zeros((2 * N - 1, 2 * N - 1))     # Initialize global stiffness matrix
+    #print(f"\nGlobal stiffness matrix:\n {K_global}\n")
     F_global = np.zeros(2 * N - 1)                  # Initialize global load vector
+    #print(f"\nGlobal load vector:\n {F_global}\n")
     
     for e in range(N-1):    
         K_local = local_stiffness_matrix_quadratic(h, Pe, method)   # Compute local stiffness matrix for current element  
@@ -328,7 +325,9 @@ def assemble_global_matrices_quadratic(N, h, Pe, method="Galerkin"):
         
         for i in range(3):          # Row
             for j in range(3):      # Column 
-                K_global[global_nodes[i], global_nodes[j]] += K_local[i, j] # Assembles the global stiffness matrix 
+                
+                K_global[global_nodes[i], global_nodes[j]] += K_local[i, j]     # Assembles the global stiffness matrix 
+            
             F_global[global_nodes[i]] += f_local[i]     # Assembles the global load vector 
     
     #print(f"\nGlobal stiffness matrix:\n {K_global}\n , \nGlobal load vector:\n {F_global}\n")
@@ -356,6 +355,7 @@ for method in methods:
         # Solve for u
         try:
             u = np.linalg.solve(K_global, F_global)
+            #u = np.linalg.solve(K_global, u)
             #print(f"Solution vector 'u' for Peclet number {Pe}: \n{u}\n")           # Error handling 
         # Solve the linear system
         except np.linalg.LinAlgError as e:
