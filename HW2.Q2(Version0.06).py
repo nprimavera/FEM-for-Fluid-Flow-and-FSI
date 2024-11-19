@@ -226,14 +226,16 @@ for Pe in Pe_values:                                    # Iterate over selected 
     plt.plot(x, u, label=f'Pe = {Pe}')
 
 # Plot the Pe numbers against the analytical solution 
-x_analytical, u_analytical = analytical_solution(x_0, x_1)   # Plot the analytical solution
-plt.plot(x_analytical, u_analytical, 'k--', label='Analytical Solution')
-plt.xlabel('x')
-plt.ylabel('u(x)')
-plt.title('Galerkin FEM Solutions for the Steady-State Advection-Diffusion Equation')
-plt.legend()
-plt.grid(True)
-plt.show()
+def plot():
+    x_analytical, u_analytical = analytical_solution(x_0, x_1)   # Plot the analytical solution
+    plt.plot(x_analytical, u_analytical, 'k--', label='Analytical Solution')
+    plt.xlabel('x')
+    plt.ylabel('u(x)')
+    plt.title('Galerkin FEM Solutions for the Steady-State Advection-Diffusion Equation')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+plot()
 
 """
 Nicolino Primavera 
@@ -250,81 +252,135 @@ Solve the same problem using the Exact Advection Diffusion (EAD) and streamwise 
     - use numerical integration at the element level (e.g. Gauss quadrature-based integration)
 """
 
-# Gauss Quadrature
+"""Solving using EAD and SUPG Methods"""
+
+# Gauss Quadrature Points     
 def gauss_quadrature(n_points):
-    if n_points == 3:
+    if n_points == 2:
+        xi = np.array([-1/np.sqrt(3), 1/np.sqrt(3)])
+        w = np.array([1, 1])
+    elif n_points == 3:
         xi = np.array([-np.sqrt(3/5), 0, np.sqrt(3/5)])
         w = np.array([5/9, 8/9, 5/9])
-        return xi, w
+    elif n_points == 4:  # Add support for 4-point quadrature
+        xi = np.array([-0.861136, -0.339981, 0.339981, 0.861136])
+        w = np.array([0.347855, 0.652145, 0.652145, 0.347855])
     else:
-        raise ValueError("Only 3-point quadrature implemented.")
+        raise ValueError("Unsupported number of Gauss points")
+    
+    #print(f"Solving using {n_points} quadrature.")     # Error handling
+    return xi, w
+
+# Define number of quadrature points 
+n_points = 3
 
 # Define higher-order (quadratic) basis functions for EAD and SUPG methods
 def quadratic_shape_functions(xi): 
     N = np.array([0.5 * xi * (xi - 1), (1 - xi**2), 0.5 * xi * (xi + 1)])       # Shape functions
-    #print(f"\nQuadratic shape functions:\n {N}\n")
     dN_dxi = np.array([xi - 0.5, -2 * xi, xi + 0.5])                            # Derivatives with respect to xi
+
+    #print(f"\nQuadratic shape functions:\n {N}\n")
     #print(f"\nDerivatives of shape functions:\n {dN_dxi}\n")
-    return N, dN_dxi    # Returns the shape functions and their derivatives 
+    return N, dN_dxi  
 
 # Compute the local stiffness matrix for quadratic elements using EAD or SUPG methods
-def local_stiffness_matrix_quadratic(h, Pe, method="Galerkin"):
+#def local_stiffness_matrix_quadratic(h, Pe, method="EAD"):
     """
-    `method` argument specifies whether to use "Galerkin", "EAD", or "SUPG" stabilization - computed below
+    `method` argument specifies whether to use "EAD" or "SUPG" stabilization - computed below
     """
-    K_local = np.zeros((3, 3))      # Initializing local stiffness matrix
-    xi, w = gauss_quadrature(3)     # Quadrature points and weights 
+    K_local = np.zeros((n_points, n_points))      # Initializing local stiffness matrix
+    xi, w = gauss_quadrature(n_points)     # Quadrature points and weights 
     
-    for i in range(3):                  # Rows 
-        for j in range(3):              # Columns
+    for i in range(n_points):           # Rows 
+        for j in range(n_points):       # Columns
             for p in range(len(xi)):    # Quadratic shape functions 
                  
                 N, dN_dxi = quadratic_shape_functions(xi[p])        # Quadratic shape functions and derivatives
-                dN_dx = dN_dxi / (0.5 * h)                          # Derivatives wrt physical coordinates               
+                dN_dx = dN_dxi / (0.5 * h)                          # Derivatives wrt physical coordinates  
+                        
                 diffusion = (k / h) * dN_dx[i] * dN_dx[j] * w[p]    # Diffusion term
                 
                 advection = a * N[i] * dN_dx[j] * w[p]              # Advection term with SUPG stabilization
 
                 # Add stabilization term if SUPG is selected
+                #if method == "SUPG" and Pe > 2:
+                #    tau_SUPG = 0.5 * h / a                          # SUPG stabilization parameter
+                #    stabilization = tau_SUPG * dN_dx[i] * dN_dx[j]  # SUPG stabilization term
+                #else:
+                #    stabilization = 0
+
                 if method == "SUPG" and Pe > 2:
-                    tau_SUPG = 0.5 * h / a                          # SUPG stabilization parameter
+                    tau_SUPG = (h / (2 * a)) / np.sqrt(1 + Pe**2)
                     stabilization = tau_SUPG * dN_dx[i] * dN_dx[j]  # SUPG stabilization term
                 else:
                     stabilization = 0
                 
                 K_local[i, j] += diffusion + advection + stabilization  # Compute local stiffness matrix 
+
     #print(f"\nLocal stiffness matrix:\n {K_local}\n")
+    return K_local
+
+def local_stiffness_matrix_quadratic(h, Pe, method="EAD"):
+    """
+    Compute local stiffness matrix for quadratic elements using EAD and SUPG methods.
+    """
+    K_local = np.zeros((3, 3))  # Initialize local stiffness matrix
+    xi, w = gauss_quadrature(4)  # Use 4-point quadrature for better accuracy
+
+    for p in range(len(xi)):  # Loop over quadrature points
+        N, dN_dxi = quadratic_shape_functions(xi[p])
+        dN_dx = dN_dxi * (2 / h)  # Scale derivatives to physical coordinates
+
+        for i in range(3):
+            for j in range(3):
+                # Diffusion term
+                diffusion = (k / h) * dN_dx[i] * dN_dx[j] * w[p]
+
+                # Advection term
+                advection = a * N[i] * dN_dx[j] * w[p]
+
+                # SUPG stabilization
+                if method == "SUPG" and Pe > 2:
+                    tau_SUPG = (h / (2 * a)) / np.sqrt(1 + Pe**2)
+                    stabilization = tau_SUPG * dN_dx[i] * dN_dx[j] * w[p]
+                else:
+                    stabilization = 0
+
+                # Add contributions to local stiffness matrix
+                K_local[i, j] += diffusion + advection + stabilization
+
     return K_local
 
 # Define load vector for quadratic elements
 def load_vector_quadratic(h):
-    xi, w = gauss_quadrature(3)     # Gauss quadrature points and weights 
-    f_local = np.zeros(3)           # Initialize load vector 
-    for i in range(3):              # Rows 
-        for p in range(len(xi)):    # Shape functions 
-
+    xi, w = gauss_quadrature(n_points)     # Gauss quadrature points and weights 
+    f_local = np.zeros(n_points)           # Initialize load vector 
+    for i in range(n_points):              # Rows 
+        for p in range(len(xi)):           # Shape functions 
             N, _ = quadratic_shape_functions(xi[p])     # Shape functions and derivatives 
             f_local[i] += N[i] * w[p] * h               # Load term
+
     #print(f"\nLocal load vector:\n {f_local}\n")
     return f_local
 
 # Assemble global matrices for quadratic elements
-def assemble_global_matrices_quadratic(N, h, Pe, method="Galerkin"):
+def assemble_global_matrices_quadratic(N, h, Pe, method="EAD"):
     
     K_global = np.zeros((2 * N - 1, 2 * N - 1))     # Initialize global stiffness matrix
-    #print(f"\nGlobal stiffness matrix:\n {K_global}\n")
     F_global = np.zeros(2 * N - 1)                  # Initialize global load vector
+
+    #print(f"\nGlobal stiffness matrix:\n {K_global}\n")
     #print(f"\nGlobal load vector:\n {F_global}\n")
     
-    for e in range(N-1):    
+    for e in range(N-1):  
+
         K_local = local_stiffness_matrix_quadratic(h, Pe, method)   # Compute local stiffness matrix for current element  
         f_local = load_vector_quadratic(h)                          # Compute local load vector for current element 
         
         # Map local to global nodes for quadratic elements
         global_nodes = [2*e, 2*e + 1, 2*e + 2]  # Each quadratic element has 3 associated nodes in the global system
-        
-        for i in range(3):          # Row
-            for j in range(3):      # Column 
+        for i in range(n_points):          # Row
+            for j in range(n_points):      # Column 
                 
                 K_global[global_nodes[i], global_nodes[j]] += K_local[i, j]     # Assembles the global stiffness matrix 
             
@@ -333,10 +389,15 @@ def assemble_global_matrices_quadratic(N, h, Pe, method="Galerkin"):
     #print(f"\nGlobal stiffness matrix:\n {K_global}\n , \nGlobal load vector:\n {F_global}\n")
     return K_global, F_global
 
+# Plot sparsity of global stiffness matrix 
+plt.spy(K_global, markersize=1)
+plt.title("Sparsity Pattern of Global Stiffness Matrix")
+#plt.show()
+
 # Run analysis for each method
-methods = ["EAD", "SUPG", "Galerkin"]
+methods = ["EAD", "SUPG"]
 for method in methods:
-    print(f"\nSolving the ADE using {method}.\n")
+    print(f"\nSolving the ADE using {method} method.\n")
     for Pe in Pe_values:
 
         h = (Pe * k) / a                            # Grid size 
@@ -355,7 +416,6 @@ for method in methods:
         # Solve for u
         try:
             u = np.linalg.solve(K_global, F_global)
-            #u = np.linalg.solve(K_global, u)
             #print(f"Solution vector 'u' for Peclet number {Pe}: \n{u}\n")           # Error handling 
         # Solve the linear system
         except np.linalg.LinAlgError as e:
@@ -363,6 +423,8 @@ for method in methods:
             continue
         
         # Plot solution for each method
+        #u_smoothed = gaussian_filter1d(u, sigma=1)
+        #plt.plot(x, u_smoothed, label=f'{method}, Pe = {Pe} (Smoothed)')
         plt.plot(x, u, label=f'{method}, Pe = {Pe}')
 
         
