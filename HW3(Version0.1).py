@@ -4,11 +4,7 @@ import math
 import pandas as pd 
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation
-
-from sympy import symbols, Function, Eq, dsolve, exp, solve
-from scipy.ndimage import gaussian_filter1d
-from numpy.polynomial.polynomial import Polynomial
+import os
 
 print("\nStarting Program...\n")
 
@@ -39,9 +35,9 @@ Solve EQN 2 for all the damping regimes (γ = 0, 0.5, 1, 2) using the generalize
 u_0 = 1                     # initial displacement 
 dudt_0 = 1                  # initial velocity 
 ω_n = math.pi               # natural frequency 
-m = 1 # example vlaue       # object mass 
-k = ω_n**2 * m              # spring stiffness
-c_r = 2 * math.sqrt(m * k)  # critical damping 
+#m = 1 # example vlaue      # object mass 
+#k = ω_n**2 * m             # spring stiffness
+#c_r = 2 * math.sqrt(m * k) # critical damping 
 
 # Define gammas (γ) - for all the damping regimes 
 gammas = [0, 0.5, 1, 2]  # undamped, underdamped, critically damped, overdamped 
@@ -50,7 +46,7 @@ gammas = [0, 0.5, 1, 2]  # undamped, underdamped, critically damped, overdamped
 rho_inf_values = [0, 0.25, 0.5, 1.0]    # spectral radius values
 
 # Simulation parameters
-time_steps = [0.1, 0.05, 0.01, 0.001]      # start with a coarse time step (0.1) and gradually decrease it and observe convergence behavior 
+time_steps = [0.1, 0.05, 0.01, 0.001, 0.0001, 0.00001]      # start with a coarse time step (0.1) and gradually decrease it and observe convergence behavior 
 t_end = 10.0 
 
 # Analytical solution
@@ -98,10 +94,16 @@ def solve_analytical_solution():
     u_critical = analytical_solution(gamma=1, t=t)
     u_overdamped = analytical_solution(gamma=2, t=t)
 
-    print(f"\nAnalytical solution for the undamped case: \n {u_undamped}\n")         # error handling 
-    print(f"\nAnalytical solution for the underdamped case: \n {u_underdamped}\n")   # error handling 
-    print(f"Analytical solution for the critically damped case:\n {u_critical}\n")   # error handling 
-    print(f"Analytical solution for the overdamped case:\n {u_overdamped}\n")        # error handling 
+    # Error handling
+    #print(f"\nAnalytical solution for the undamped case: \n {u_undamped}\n")         
+    #print(f"\nAnalytical solution for the underdamped case: \n {u_underdamped}\n")  
+    #print(f"Analytical solution for the critically damped case:\n {u_critical}\n")  
+    #print(f"Analytical solution for the overdamped case:\n {u_overdamped}\n")   
+     
+    # Create folder to save plots 
+    save_folder = "/Users/nicolinoprimavera/Desktop/Columbia University/Finite Element Method for Fluid Flow and Fluid-Structure Interactions/HW3/Plots" 
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder)     
 
     # Plot results
     plt.figure(figsize=(10, 6))
@@ -114,7 +116,15 @@ def solve_analytical_solution():
     plt.ylabel("Displacement (u)")
     plt.legend()
     plt.grid()
+
+    # Save the plot 
+    filename = f"Analytical Solution for Damped Harmonic Oscillator.png"
+    save_path = os.path.join(save_folder, filename)
+    plt.savefig(save_path)
+    print(f"\nGraph saved as {save_path}.\n")
+    
     plt.show()
+
 solve_analytical_solution()
 
 # Generalized-alpha Time Integration Method 
@@ -131,7 +141,7 @@ def generalized_alpha_time_integraton_method(gamma, rho_inf, dt, t_end):
     """ 
 
     # Stability parameters based on spectral radius parameter (ρ_∞)
-    #α_m = (2 - rho_inf) / (1 + rho_inf)     # Mass matrix weighting factor 
+    #α_m = (2 - rho_inf) / (1 + rho_inf)    # Mass matrix weighting factor 
     α_f = 1 / (1 + rho_inf)                 # Force weighting factor
     β = ((1 + α_f)**2)/4                    # Integration parameter for displacement
     γ = 0.5 + α_f                           # Integration parameter for velocity
@@ -175,24 +185,54 @@ def solve():
         - plot u(t) for each gamma (γ) and spectral radius (ρ_∞)
     """
 
+    # Create folder to save plots 
+    save_folder = "/Users/nicolinoprimavera/Desktop/Columbia University/Finite Element Method for Fluid Flow and Fluid-Structure Interactions/HW3/Plots" 
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder)
+
     for gamma in gammas:
         print(f"Analyzing system for γ = {gamma}")
         for rho_inf in rho_inf_values:
+            # Prepare the plot
+            plt.figure(figsize=(10, 6))
+            plt.title(f"Damped Harmonic Oscillator Solutions: γ = {gamma}, ρ_∞ = {rho_inf}")
+            plt.xlabel("Time (t)")
+            plt.ylabel("Displacement (u)")
+            plt.grid(True)
+            
             for dt in time_steps:
                 print(f"  - ρ_∞ = {rho_inf}, dt = {dt}")
                 t, u_numerical = generalized_alpha_time_integraton_method(gamma, rho_inf, dt, t_end)
                 u_analytical = analytical_solution(gamma, t)
 
-                # Plot results
-                plt.figure()
-                plt.plot(t, u_numerical, label="Numerical Solution")
-                plt.plot(t, u_analytical, label="Analytical Solution", linestyle="dashed")
-                plt.title(f"Damped Harmonic Oscillator Solutions: γ = {gamma}, ρ_∞ = {rho_inf}, dt = {dt}")
-                plt.xlabel("Time (t)")
-                plt.ylabel("Displacement (u)")
-                plt.legend()
-                plt.grid()
-                plt.show()
+                # Plot - creates individual graphs for each gamma, spectral radius and time step and plots it against the analytical solution --> generates too many graphs 
+                #plt.figure()
+                #plt.plot(t, u_numerical, label="Numerical Solution when time step = {dt}")
+                #plt.plot(t, u_analytical, label="Analytical Solution", linestyle="dashed")
+                #plt.title(f"Damped Harmonic Oscillator Solutions: γ = {gamma}, ρ_∞ = {rho_inf}") #, dt = {dt}")
+                #plt.xlabel("Time (t)")
+                #plt.ylabel("Displacement (u)")
+                #plt.legend()
+                #plt.grid()
+                #plt.show()
+
+                # Plot numerical solution for this time step (dt)
+                plt.plot(t, u_numerical, label=f"dt = {dt}")
+            
+            # Plot the analytical solution 
+            plt.plot(t, u_analytical, label="Analytical Solution", linestyle="dashed", color="black")
+
+            # Add legend 
+            plt.legend()
+
+            # Save the plot as a .png file with a unique name based on γ and ρ_∞
+            filename = f"gamma_{gamma}_rho_inf_{rho_inf}.png"
+            save_path = os.path.join(save_folder, filename)
+            plt.savefig(save_path)
+            print(f"\nGraph saved as {save_path}.\n")
+
+            # Display the plot with all dt solutions
+            plt.show()
 solve()
 
 # Plot error convergence
@@ -202,6 +242,12 @@ def error_convergence():
         - Calculate the error E = ||u_numerical - u_analytical|| using the L2-norm for each time step size and ρ_∞
         - Plot E vs. time step size for each ρ_∞
     """
+
+    # Create folder to save plots 
+    save_folder = "/Users/nicolinoprimavera/Desktop/Columbia University/Finite Element Method for Fluid Flow and Fluid-Structure Interactions/HW3/Plots" 
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder) 
+
     errors = {}
     
     for rho_inf in rho_inf_values:
@@ -231,7 +277,36 @@ def error_convergence():
     plt.grid()
     plt.xscale('log')  # Use log scale for better visualization
     plt.yscale('log')  # Use log scale for better visualization
+
+    # Save the plot 
+    filename = f"Error Convergence for Damped Harmonic Oscillator.png"
+    save_path = os.path.join(save_folder, filename)
+    plt.savefig(save_path)
+    print(f"\nGraph saved as {save_path}.\n")
+
     plt.show()
+
 error_convergence()
+
+def test_time_step_convergence(gamma, rho_inf):
+    dt_values = [0.1, 0.05, 0.01, 0.005, 0.001]
+    errors = []
+    
+    for dt in dt_values:
+        t, u_numerical = generalized_alpha_time_integraton_method(gamma, rho_inf, dt, t_end)
+        u_analytical = analytical_solution(gamma, t)
+        error = np.linalg.norm(u_numerical - u_analytical, ord=2)
+        errors.append(error)
+        print(f"dt = {dt}, L2 Error = {error}")
+
+    plt.figure()
+    plt.loglog(dt_values, errors, marker='o')
+    plt.title(f"Error Convergence for γ = {gamma}, ρ_∞ = {rho_inf}")
+    plt.xlabel("Time Step (dt)")
+    plt.ylabel("L2 Error")
+    plt.grid(True)
+    plt.show()
+
+test_time_step_convergence()
 
 print("\nProgram Finished.\n")
