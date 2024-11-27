@@ -18,6 +18,7 @@ A damped harmonic oscillator is governed by (m * (d^2u / dt^2)) + c (du / dt) + 
     - m is the object's mass
     - c is the damping coefficient 
     - k is the spring stiffness 
+    - u is the vector of displacement unknowns 
     - γ (gamma) = c / cr is the damping ratio 
     - cr = 2sqrt(mk) is the critical damping 
     - the system behaves as an undamped (γ = 0), underdamped (0 < γ < 1), overdamped (γ > 1), or critically damped (γ = 1) system 
@@ -35,18 +36,22 @@ Solve EQN 2 for all the damping regimes (γ = 0, 0.5, 1, 2) using the generalize
 u_0 = 1                     # initial displacement 
 dudt_0 = 1                  # initial velocity 
 ω_n = math.pi               # natural frequency 
-#m = 1 # example vlaue      # object mass 
-#k = ω_n**2 * m             # spring stiffness
-#c_r = 2 * math.sqrt(m * k) # critical damping 
+m = 1                       # object mass 
+k = ω_n**2 * m              # spring stiffness
+c_r = 2 * math.sqrt(m * k)  # critical damping 
 
 # Define gammas (γ) - for all the damping regimes 
 gammas = [0, 0.5, 1, 2]  # undamped, underdamped, critically damped, overdamped 
 
+# Damping coefficient 
+for gamma in gammas:
+    c = 2*gamma*ω_n             # damping coefficient 
+
 # Define spectral radius parameters (ρ_∞)
 rho_inf_values = [0, 0.25, 0.5, 1.0]    # spectral radius values
 
-# Simulation parameters
-time_steps = [0.1, 0.05, 0.01, 0.001, 0.0001, 0.00001]      # start with a coarse time step (0.1) and gradually decrease it and observe convergence behavior 
+# Time parameters 
+time_steps = [0.1, 0.05, 0.01, 0.001, 0.0001]      # start with a coarse time step (0.1) and gradually decrease it and observe convergence behavior 
 t_end = 10.0 
 
 # Analytical solution
@@ -124,13 +129,24 @@ def solve_analytical_solution():
     print(f"\nGraph saved as {save_path}.\n")
     
     plt.show()
-
 solve_analytical_solution()
 
 # Generalized-alpha Time Integration Method 
 def generalized_alpha_time_integraton_method(gamma, rho_inf, dt, t_end):
     """
     Generalized-α Time Integration Method for second-order ODEs
+        - proposed for a 2nd order ODE: M(d^2x/dt^2)+C(dx/dt)+DX=F
+        - used for solving structural dynamics problems 
+        - possesses numerical dissipation that can be controlled by the user 
+        - achieves high-frequency dissipation while minimizing unwanted low-frequency dissipation
+        - controls high frequency oscillations 
+
+    Main Advantages:
+        - implicit (unconditional stability)
+        - 2nd order accurate ~ 0(Δt^2)
+        - controls (damps) high frequency oscillations very effectively 
+
+    Parameters:         
         - Spectral radius parameter, ρ_∞, controls the high-frequency damping 
         - For each γ, choose at least four values of the spectral radius parameters (0 ≤ ρ_∞ ≤ 1) and compare your numerical solution against the analytical solution
             - ex: ρ_∞ = 0,0.5,0.8,1.0
@@ -140,13 +156,7 @@ def generalized_alpha_time_integraton_method(gamma, rho_inf, dt, t_end):
             - stability parameters 
     """ 
 
-    # Stability parameters based on spectral radius parameter (ρ_∞)
-    #α_m = (2 - rho_inf) / (1 + rho_inf)    # Mass matrix weighting factor 
-    α_f = 1 / (1 + rho_inf)                 # Force weighting factor
-    β = ((1 + α_f)**2)/4                    # Integration parameter for displacement
-    γ = 0.5 + α_f                           # Integration parameter for velocity
-
-    # Compute the total number of time steps based on time increment (dt) and simulation duration (t_end)
+    # Compute the total number of time steps based on time increment (dt) and simulation duration (t_end=10)
     num_steps = int(t_end / dt)
 
     # Initialize arrays to store displacement (u), velocity (v), and acceleration (a)
@@ -159,20 +169,28 @@ def generalized_alpha_time_integraton_method(gamma, rho_inf, dt, t_end):
     v[0] = dudt_0                                       # Initial velocity
     a[0] = -2 * gamma * ω_n * v[0] - ω_n**2 * u[0]      # Initial acceleration from equation: a = -2γω_nv - ω_n^2u
 
+    # Stability parameters based on spectral radius parameter (ρ_∞)
+    α_m = (2 - rho_inf) / (1 + rho_inf)     # Mass matrix weighting factor for 2nd order systems 
+    α_f = 1 / (1 + rho_inf)                 # Force weighting factor
+
+    # Guarantee 2nd Order Accuracy
+    β = ((1 - α_f + α_m)**2)/4              # Integration parameter for displacement , high frequency dissipation is maximized 
+    γ = 0.5 + α_m - α_f                     # Integration parameter for velocity
+
     # Time integration loop
     for n in range(num_steps - 1):
-        # Predictor step for displacement and velocity
-        u_pred = u[n] + dt * v[n] + 0.5 * dt**2 * (1 - 2 * β) * a[n]    # Predicted displacement
-        v_pred = v[n] + dt * (1 - γ) * a[n]                             # Predicted velocity
+        # Predictor step for displacement and velocity  
+        y_u = u[n] + (dt * v[n]) + 0.5 * dt**2 * ((1 - 2 * β) * a[n] + 2 * β * a[n])   # Displacement (y_n+1) update equation
+        y_v = v[n] + dt * ((1 - γ) * a[n] + γ * a[n])                                  # Velocity (ydot_n+1) update equation
 
         # Solve for acceleration at the next step using the residual equation: a[n+1] = (-2γω_nv_pred - ω_n^2u_pred) / (1 + 2γβω_n)
-        a[n + 1] = (-2 * gamma * ω_n * v_pred - ω_n**2 * u_pred) / (1 + 2 * γ * β * ω_n)
+        a[n + 1] = (-2 * gamma * ω_n * y_v - ω_n**2 * y_u) / (1 + 2 * γ * β * ω_n)
 
         # Correct displacement using acceleration at the next time step
-        u[n + 1] = u_pred + β * dt**2 * a[n + 1]  # Update displacement
+        u[n + 1] = y_u + β * dt**2 * a[n + 1]  # Update displacement
 
         # Correct velocity using acceleration at the next time step
-        v[n + 1] = v_pred + γ * dt * a[n + 1]  # Update velocity
+        v[n + 1] = y_v + γ * dt * a[n + 1]  # Update velocity
 
     # Return time array and displacement solution
     return np.linspace(0, t_end, num_steps), u
@@ -306,7 +324,6 @@ def test_time_step_convergence(gamma, rho_inf):
     plt.ylabel("L2 Error")
     plt.grid(True)
     plt.show()
-
 test_time_step_convergence()
 
 print("\nProgram Finished.\n")
