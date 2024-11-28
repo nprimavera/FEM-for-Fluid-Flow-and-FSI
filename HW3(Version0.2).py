@@ -51,7 +51,7 @@ for gamma in gammas:
 rho_inf_values = [0, 0.25, 0.5, 1.0]    # spectral radius values
 
 # Time parameters 
-time_steps = [0.1, 0.05, 0.01, 0.001, 0.0001]      # start with a coarse time step (0.1) and gradually decrease it and observe convergence behavior 
+time_steps = [0.1, 0.05, 0.01, 0.001]      # start with a coarse time step (0.1) and gradually decrease it and observe convergence behavior 
 t_end = 10.0 
 
 # Analytical solution
@@ -69,24 +69,28 @@ def analytical_solution(gamma, t):
 
     # Undamped case
     if gamma == 0:  
-        return np.exp(-gamma * ω_n * t) * (np.cos(ω_n * t) + np.sin(ω_n * t))
+        #return np.exp(-gamma * ω_n * t) * (np.cos(ω_n * t) + np.sin(ω_n * t))
+        return (np.cos(ω_n * t) + np.sin(ω_n * t)) / ω_n
     
     # Underdamped case
     elif gamma < 1:  
-        ω_d = ω_n * math.sqrt(1 - gamma**2)  # Damped natural frequency
-        return np.exp(-gamma * ω_n * t) * (np.cos(ω_d * t) + np.sin(ω_d * t))
+        ω_d = ω_n * np.sqrt(1 - gamma**2)  # Damped natural frequency
+        #return np.exp(-gamma * ω_n * t) * (np.cos(ω_d * t) + np.sin(ω_d * t))
+        return np.cos(ω_d * t) + (gamma * ω_n * np.sin(ω_d * t)) / ω_d
     
     # Critically damped case
     elif gamma == 1:  
-        return np.exp(-ω_n * t) * (1 + ω_n * t)
-    
+        #return np.exp(-ω_n * t) * (1 + ω_n * t)
+        return (1 + ω_n * t) * np.exp(-ω_n * t)
+
     # Overdamped case
     else:  # gamma > 1 
-        λ1 = -ω_n * (gamma - math.sqrt(gamma**2 - 1))
-        λ2 = -ω_n * (gamma + math.sqrt(gamma**2 - 1))
+        λ1 = -ω_n * (gamma - np.sqrt(gamma**2 - 1))
+        λ2 = -ω_n * (gamma + np.sqrt(gamma**2 - 1))
         C1, C2 = 1, 1   # constants based on initial conditions
-        return C1 * np.exp(λ1 * t) + C2 * np.exp(λ2 * t)
-
+        #return C1 * np.exp(λ1 * t) + C2 * np.exp(λ2 * t)
+        return np.exp(λ1 * t) * (λ2 / (λ2 - λ1)) + np.exp(λ2 * t) * (-λ1 / (λ2 - λ1))
+    
 def solve_analytical_solution():
     """
     Solve and plot the analytical solution for all damping regimes.
@@ -159,43 +163,71 @@ def generalized_alpha_time_integraton_method(gamma, rho_inf, dt, t_end):
     # Compute the total number of time steps based on time increment (dt) and simulation duration (t_end=10)
     num_steps = int(t_end / dt)
 
+    # Stability parameters based on spectral radius parameter (ρ_∞)
+    α_m = (2 - rho_inf) / (1 + rho_inf)     # Mass matrix weighting factor for 2nd order systems 
+    #α_m = (0.5 * (3 - rho_inf)) / (1 + rho_inf)
+    α_f = 1 / (1 + rho_inf)                 # Force weighting factor
+    # Guarantee 2nd Order Accuracy
+    #β = ((1 - α_f + α_m)**2)/4              # Integration parameter for displacement , high frequency dissipation is maximized 
+    β = ((1 + α_f - α_m)**2)/4
+    #γ = 0.5 - α_m + α_f                     # Integration parameter for velocity
+    γ = 0.5 + α_f - α_m
+    
+    # Error handling 
+    #print(f"\nMass matrix wighting factor for 2nd order system: α_m = {α_m}\n")
+    #print(f"\nForce weighting factor: α_f = {α_f}\n")
+    #print(f"\nGamma(γ) = {γ}\n")
+
     # Initialize arrays to store displacement (u), velocity (v), and acceleration (a)
-    u = np.zeros(num_steps)  # Displacement
-    v = np.zeros(num_steps)  # Velocity
-    a = np.zeros(num_steps)  # Acceleration
+    t = np.arange(0, t_end + dt, dt)   # Time step 
+    u = np.zeros_like(t)  # Displacement
+    v = np.zeros_like(t)  # Velocity
+    a = np.zeros_like(t)  # Acceleration
+
+    #print(f"\nTime matrix:\n {t}\n")
+
+    # Initialize arrays to store displacement (u), velocity (v), and acceleration (a)
+    #u = np.zeros(num_steps)  # Displacement
+    #v = np.zeros(num_steps)  # Velocity
+    #a = np.zeros(num_steps)  # Acceleration
 
     # Initial conditions
     u[0] = u_0                                          # Initial displacement
     v[0] = dudt_0                                       # Initial velocity
     a[0] = -2 * gamma * ω_n * v[0] - ω_n**2 * u[0]      # Initial acceleration from equation: a = -2γω_nv - ω_n^2u
 
-    # Stability parameters based on spectral radius parameter (ρ_∞)
-    α_m = (2 - rho_inf) / (1 + rho_inf)     # Mass matrix weighting factor for 2nd order systems 
-    α_f = 1 / (1 + rho_inf)                 # Force weighting factor
-    # Guarantee 2nd Order Accuracy
-    β = ((1 - α_f + α_m)**2)/4              # Integration parameter for displacement , high frequency dissipation is maximized 
-    γ = 0.5 - α_m + α_f                     # Integration parameter for velocity
-    #print(f"\nMass matrix wighting factor for 2nd order system: α_m = {α_m}\n")
-    #print(f"\nForce weighting factor: α_f = {α_f}\n")
-    #print(f"\nGamma(γ) = {γ}\n")
-
     # Time integration loop
-    for n in range(num_steps - 1):
-        # Predictor step for displacement and velocity  
-        y_u = u[n] + (dt * v[n]) + 0.5 * dt**2 * ((1 - 2 * β) * a[n] + 2 * β * a[n])   # Displacement (y_n+1) update equation
-        y_v = v[n] + dt * ((1 - γ) * a[n] + γ * a[n])                                  # Velocity (ydot_n+1) update equation
+    for i in range(1, len(t)):
 
-        # Solve for acceleration at the next step using the residual equation: a[n+1] = (-2γω_nv_pred - ω_n^2u_pred) / (1 + 2γβω_n)
-        a[n + 1] = (-2 * gamma * ω_n * y_v - ω_n**2 * y_u) / (1 + 2 * γ * β * ω_n)
-
-        # Correct displacement using acceleration at the next time step
-        u[n + 1] = y_u + β * dt**2 * a[n + 1]  # Update displacement
-
-        # Correct velocity using acceleration at the next time step
-        v[n + 1] = y_v + γ * dt * a[n + 1]  # Update velocity
+        # Predicting
+        y_u = u[i - 1] + dt * v[i - 1] + dt**2 * (0.5 - β) * a[i - 1] # Displacement predictor
+        y_v = v[i - 1] + dt * (1 - γ) * a[i - 1]                      # Velocity predictor 
+        y_a = -2 * γ * ω_n * y_v - ω_n**2 * y_u                       # Acceleration
+        
+        # Solving
+        u[i] = y_u + β * dt**2 * y_a    # Displacement 
+        v[i] = y_v + γ * dt * y_a       # Velocity
+        a[i] = y_a                      # Acceleration 
 
     # Return time array and displacement solution
-    return np.linspace(0, t_end, num_steps), u
+    return t, u
+    
+    #for n in range(num_steps - 1):
+        # Predictor step for displacement and velocity  
+        #y_u = u[n] + (dt * v[n]) + 0.5 * dt**2 * ((1 - 2 * β) * a[n] + 2 * β * a[n])   # Displacement (y_n+1) update equation
+        #y_v = v[n] + dt * ((1 - γ) * a[n] + γ * a[n])                                  # Velocity (ydot_n+1) update equation
+
+        # Solve for acceleration at the next step using the residual equation: a[n+1] = (-2γω_nv_pred - ω_n^2u_pred) / (1 + 2γβω_n)
+        #a[n + 1] = (-2 * gamma * ω_n * y_v - ω_n**2 * y_u) / (1 + 2 * γ * β * ω_n)
+
+        # Correct displacement using acceleration at the next time step
+        #u[n + 1] = y_u + β * dt**2 * a[n + 1]  # Update displacement
+
+        # Correct velocity using acceleration at the next time step
+        #v[n + 1] = y_v + γ * dt * a[n + 1]  # Update velocity
+
+    # Return time array and displacement solution
+    #return np.linspace(0, t_end, num_steps), u
 
 # Main script
 def solve():
@@ -212,18 +244,68 @@ def solve():
 
     for gamma in gammas:
         print(f"Analyzing system for γ = {gamma}")
+
+        t = np.arange(0, t_end + time_steps[0], time_steps[0])  # time step
+        
+        # Prepare the plot
+        plt.figure(figsize=(12,6))
+        plt.title(f"Damped Harmonic Oscillator Solutions: γ = {gamma}")
+        plt.xlabel("Time (t)")
+        plt.ylabel("Displacement (u)")
+        plt.tight_layout()
+        plt.grid(True) 
+        #u_analytical = analytical_solution(gamma, t)            # analytical solution
+        #plt.plot(t, u_analytical, linestyle='dashed', label='Analytical Solution')   # plot analyticl solution
+
         for rho_inf in rho_inf_values:
-            # Prepare the plot
-            plt.figure(figsize=(10, 6))
-            plt.title(f"Damped Harmonic Oscillator Solutions: γ = {gamma}, ρ_∞ = {rho_inf}")
-            plt.xlabel("Time (t)")
-            plt.ylabel("Displacement (u)")
-            plt.grid(True)
-            
             for dt in time_steps:
                 print(f"  - ρ_∞ = {rho_inf}, dt = {dt}")
                 t, u_numerical = generalized_alpha_time_integraton_method(gamma, rho_inf, dt, t_end)
-                u_analytical = analytical_solution(gamma, t)
+                u_analytical = analytical_solution(gamma, t)            # analytical solution
+                
+                plt.plot(t, u_numerical, label=f'ρ={rho_inf}, dt={dt}')  
+
+                # Error handling
+                #print(f"\nGamma: {gamma}\n")
+                #print(f"\nrho_inf: {rho_inf}\n")
+                #print(f"\ntime step: {dt}\n")
+
+        # Plot the analytical solution 
+        plt.plot(t, u_analytical, linestyle='dashed', label='Analytical Solution')   # plot analyticl solution
+
+        # Add legend 
+        plt.legend()
+
+        # Plot 
+        plt.title(f"Damped Harmonic Oscillator Solutions: γ = {gamma}")
+        plt.xlabel("Time (t)")
+        plt.ylabel("Displacement (u)")
+        plt.tight_layout()
+        plt.grid(True) 
+
+        # Save the plot as a .png file with a unique name based on γ and ρ_∞
+        filename = f"gamma_{gamma}_rho_inf_{rho_inf}.png"
+        save_path = os.path.join(save_folder, filename)
+        plt.savefig(save_path)
+        print(f"\nGraph saved as {save_path}.\n")
+
+        # Plot
+        plt.show()  
+
+    #for gamma in gammas:
+        #print(f"Analyzing system for γ = {gamma}")
+        #for rho_inf in rho_inf_values:
+            # Prepare the plot
+            #plt.figure(figsize=(12, 6))
+            #plt.title(f"Damped Harmonic Oscillator Solutions: γ = {gamma}, ρ_∞ = {rho_inf}")
+            #plt.xlabel("Time (t)")
+            #plt.ylabel("Displacement (u)")
+            #plt.grid(True)
+            
+            #for dt in time_steps:
+                #print(f"  - ρ_∞ = {rho_inf}, dt = {dt}")
+                #t, u_numerical = generalized_alpha_time_integraton_method(gamma, rho_inf, dt, t_end)
+                #u_analytical = analytical_solution(gamma, t)
 
                 # Plot - creates individual graphs for each gamma, spectral radius and time step and plots it against the analytical solution --> generates too many graphs 
                 #plt.figure()
@@ -237,22 +319,22 @@ def solve():
                 #plt.show()
 
                 # Plot numerical solution for this time step (dt)
-                plt.plot(t, u_numerical, label=f"dt = {dt}")
+                #plt.plot(t, u_numerical, label=f"dt = {dt}")
             
             # Plot the analytical solution 
-            plt.plot(t, u_analytical, label="Analytical Solution", linestyle="dashed", color="black")
+            #plt.plot(t, u_analytical, label="Analytical Solution", linestyle="dashed", color="black")
 
             # Add legend 
-            plt.legend()
+            #plt.legend()
 
             # Save the plot as a .png file with a unique name based on γ and ρ_∞
-            filename = f"gamma_{gamma}_rho_inf_{rho_inf}.png"
-            save_path = os.path.join(save_folder, filename)
-            plt.savefig(save_path)
-            print(f"\nGraph saved as {save_path}.\n")
+            #filename = f"gamma_{gamma}_rho_inf_{rho_inf}.png"
+            #save_path = os.path.join(save_folder, filename)
+            #plt.savefig(save_path)
+            #print(f"\nGraph saved as {save_path}.\n")
 
             # Display the plot with all dt solutions
-            plt.show()
+            #plt.show()
 solve()
 
 # Plot error convergence
@@ -305,7 +387,6 @@ def error_convergence():
     print(f"\nGraph saved as {save_path}.\n")
 
     plt.show()
-
 error_convergence()
 
 def test_time_step_convergence(gamma, rho_inf):
@@ -326,6 +407,6 @@ def test_time_step_convergence(gamma, rho_inf):
     plt.ylabel("L2 Error")
     plt.grid(True)
     plt.show()
-test_time_step_convergence()
+#test_time_step_convergence()
 
 print("\nProgram Finished.\n")
