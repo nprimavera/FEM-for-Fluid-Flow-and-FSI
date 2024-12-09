@@ -8,25 +8,26 @@ Original file is located at
 """
 
 # Install fenics
-def fenics():
-    try:
-        import dolfin
-    except ImportError:
-        # Install FEniCS if not installed
-        !wget "https://fem-on-colab.github.io/releases/fenics-install-real.sh" -O "/tmp/fenics-install.sh"
-        !bash "/tmp/fenics-install.sh"
+#def fenics():
+#    try:
+#        import dolfin
+#    except ImportError:
+#        # Install FEniCS if not installed
+#        !wget "https://fem-on-colab.github.io/releases/fenics-install-real.sh" -O "/tmp/fenics-install.sh"
+#        !bash "/tmp/fenics-install.sh"
 
     # Now try importing again
-    import dolfin
+#    import dolfin
 
 # Execute function
-fenics()
+#fenics()
 
 import math
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import dolfin 
 
 from matplotlib import pyplot as plt
 from matplotlib import cm
@@ -203,6 +204,7 @@ plt.show()
 
 # Define the parabolic inflow velocity profile
 U_in = Expression(("4.0 * U_max * x[1] * (H - x[1]) / pow(H, 2)", "0.0"), U_max=1.0, H=H, degree=2)  # U_max = centerline velocity
+U_max = 1
 
 print(f"Inflow velocity profile: \n{U_in}\n")
 
