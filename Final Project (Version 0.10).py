@@ -200,6 +200,7 @@ print(f"\nLinear form of stokes equations with stabilization term: \n{L_P1P1}")
 ## Dirichlet Boundary Conditions
 inflow_bc = DirichletBC(W.sub(0), U_inlet, "near(x[0], 0)")    # Inflow boundary: Parabolic velocity profile
 walls_bc = DirichletBC(W.sub(0), Constant((0.0, 0.0)), "near(x[1], 0 || near(x[1], {H}))".format(H=H))   # Walls (top and bottom): No-slip condition
+#walls_bc = DirichletBC(W.sub(0), Constant((0.0, 0.0)), "near(x[1], 0) || near(x[1], H)")
 outflow_bc = DirichletBC(W.sub(1), Constant(0.0), "near(x[0], {L})".format(L=L)) # Outflow boundary: Pressure 
 bcs = [inflow_bc, walls_bc, outflow_bc] # Combine boundary conditions
 
@@ -219,13 +220,13 @@ solve(a_P1P1 == L_P1P1, w_P1P1, bcs) # Solve the linear system
 # P1P1 Velocity solutions
 velocity_magnitude = sqrt(dot(velocity_solution_P1P1, velocity_solution_P1P1))
 velocity_P1P1 = velocity_solution_P1P1.compute_vertex_values(mesh)
-#print(f"\nVelocity: \n{velocity_P1P1}")    # error handling
+print(f"\nVelocity: \n{velocity_P1P1}")    # error handling
 if not np.isfinite(velocity_P1P1).all():
     raise ValueError("\nVelocity contains non-finite values (NaN or Inf).")
 
 # P1P1 Pressure solutions 
 pressure_P1P1 = pressure_solution_P1P1.compute_vertex_values(mesh)
-#print(f"\nPressure: \n{pressure_P1P1}\n")    # error handling
+print(f"\nPressure: \n{pressure_P1P1}\n")    # error handling
 if not np.isfinite(pressure_P1P1).all():
     raise ValueError("\nPressure contains non-finite values (NaN or Inf).")
 
@@ -260,7 +261,7 @@ if not os.path.exists(save_folder):
 # P1P1 - Plot velocity field (magnitude)
 print(f"\nVelocity solution plot: \n{velocity_solution_P1P1}")
 plt.figure()
-plot_u_P1P1 = plot(velocity_solution_P1P1, title="Velocity Field for P1P1", cmap=cm.viridis)  # Use a colormap
+plot_u_P1P1 = plot(velocity_solution_P1P1*4, title="Velocity Field for P1P1", cmap=cm.viridis)  # Use a colormap
 plt.colorbar(plot_u_P1P1, label="Velocity value")  # Attach the colorbar to the mappable object
 plt.xlabel("x")
 plt.ylabel("y")
@@ -414,7 +415,7 @@ print(F"Relative error for velocity: {error:.4f}%\n")
 # Plot velocity field (magnitude)
 print(f"\nVelocity solution plot: \n{velocity_solution_Q2Q1}")
 plt.figure()
-plot_u = plot(velocity_solution_Q2Q1, title="Velocity Field for Q2Q1", cmap=cm.viridis)  # Use a colormap
+plot_u = plot(velocity_solution_Q2Q1*4, title="Velocity Field for Q2Q1", cmap=cm.viridis)  # Use a colormap
 plt.colorbar(plot_u, label="Velocity value")  # Attach the colorbar to the mappable object
 plt.xlabel("x")
 plt.ylabel("y")
@@ -463,5 +464,5 @@ plt.legend(fontsize=12)
 filename = f"Pressure Distribution Along the Centerline of the Channel for Q2Q1.png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
-print(f"\nGraph saved as {save_path}.\n")
+print(f"Graph saved as {save_path}.\n")
 plt.show()
