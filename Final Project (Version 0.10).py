@@ -8,27 +8,6 @@ import dolfin
 import os
 from fenics import *
 import pandas as pd
-def dolfinx(): # # need these packages if solving with dolfinx
-    pass    
-    #import dolfinx
-    #from mpi4py import MPI
-    #import ufl
-    #from petsc4py import PETSc
-    #import pyvista as pv
-
-    # if using dolfinx
-    #from dolfinx.fem import Constant, Function, functionspace, FunctionSpace, assemble_scalar, dirichletbc, form, locate_dofs_geometrical
-    #from dolfinx.fem.petsc import assemble_matrix, assemble_vector, apply_lifting, create_vector, set_bc, LinearProblem
-    #from dolfinx.io import VTXWriter, XDMFFile
-    #from dolfinx.mesh import create_rectangle, CellType
-    #from dolfinx.plot import vtk_mesh
-    #from basix.ufl import element
-    #from ufl import (FacetNormal, Identity, TestFunction, TrialFunction,
-    #                 div, dot, ds, dx, inner, lhs, nabla_grad, rhs, sym,
-    #                 CellDiameter, Constant, as_vector)
-
-    # Enable off-screen rendering
-    #pv.OFF_SCREEN = True
 
 # Check installation
 print(f"\nChecking installation:")
@@ -129,7 +108,7 @@ print("\nFEM mesh created.")
 # P1P1: Linear elements for both velocity and pressure
 V = VectorFunctionSpace(mesh, "P", 1)  # Velocity space (vector field)
 Q = FunctionSpace(mesh, "P", 1)        # Pressure space (scalar field)
-element = MixedElement([VectorElement("P", mesh.ufl_cell(), 1), FiniteElement("P", mesh.ufl_cell(), 1)])    # Define mixed element for velocity (vector field) and pressure (scalar field)
+element = MixedElement([VectorElement("P", mesh.ufl_cell(), 1), FiniteElement("P", mesh.ufl_cell(), 1)]) # Define mixed element for velocity (vector field) and pressure (scalar field)
 W = FunctionSpace(mesh, element)    # Create the mixed function space using the mixed element
 
 # Define trial and test functions for variational formulation
@@ -155,10 +134,11 @@ print(f"\nInflow velocity profile (analytical solution): {U_inlet}")
 x_vals = np.linspace(0, L, 100) # L = 8
 y_vals = np.linspace(0, H, 100) # H = 1
 X, Y = np.meshgrid(x_vals, y_vals)
+#print(f"\ny-values {y_vals}")
 
 # Compute the velocity components across the domain
 U_x = U_max * Y * (H - Y) / (H**2)  # Parabolic velocity profile in x-direction
-U_y = np.zeros_like(Y)                    # Zero velocity in the y-direction
+U_y = np.zeros_like(Y)              # Zero velocity in the y-direction
 print("\nAnalytical solution for inflow velocity profile:\n")
 print(f"Parabolic inflow velocity in the x-direction:\n \n{U_x}\n")
 print(f"Parabolic inflow velocity in the y-direction:\n \n{U_y}\n")
@@ -167,9 +147,9 @@ print(f"Parabolic inflow velocity in the y-direction:\n \n{U_y}\n")
 
 # Define the bilinear form for Stokes equations
 a_stokes = (
-    mu * inner(grad(u), grad(v)) * dx        # Viscous term
-    - div(v) * p * dx                    #
-    + div(u) * q * dx                      #
+    mu * inner(grad(u), grad(v)) * dx    # Viscous term - represents the viscous forces in the momentum eqn. - acounts for the diffusion of momentum due to viscosity(mu)
+    - div(v) * p * dx                    # Pressure-velocity coupling term - enforces the incompressibility constraint (continuity eqn.) in the weak form - ensures pressure is consistent w/ divergence of test function v
+    + div(u) * q * dx                    # Continuiy eqn. term - ensures that the velocity field u satisfies the incompressibility condition (divergence-free velocity field)
 )
 print(f"\nBilinear form of stokes equations:\n {a_stokes}")
 # Define the linear form (forcing term)
@@ -178,7 +158,7 @@ L_stokes = dot(f_b, v) * dx  # linear form , ∇ ∙ u = 0 (incompressibility)
 #L_stokes = dot(Constant((0.0, 0.0)), v) * dx  # linear form , ∇ ∙ u = 0 (incompressibility)
 print(f"\nLinear form of stokes equations:\n {L_stokes}\n")
 
-# PSPG stabilization parameter τ (tau)
+# PSPG (Pressure Stabilizing Petrov-Galerkin) stabilization parameter τ (tau)
 h = CellDiameter(mesh)  # Define characteristic element size (h) using UFL's CellDiameter
 tau = h**2 / (4.0 * mu) # stabilization parameter 
 stabilization = tau * inner(grad(p), grad(q)) * dx  # stabilization term 
@@ -187,20 +167,21 @@ print(f"Stabilization: {stabilization}\n")
 
 # Stokes equations (stabilized) - stabilization allows using equal-order discretization for both velocity and pressure function spaces (ex. P1-P1, Q1-Q1)
 a_P1P1 = (    # bilinear form
-    μ * inner(grad(u), grad(v)) * dx       # Viscous term
-    - div(v) * p * dx                                  #
-    + div(u) * q * dx                                  #
-    + tau * inner(grad(p), grad(q)) * dx   # PSPG stabilization term
+    mu * inner(grad(u), grad(v)) * dx    # Viscous term - represents the viscous forces in the momentum eqn. - acounts for the diffusion of momentum due to viscosity(mu)
+    - div(v) * p * dx                    # Pressure-velocity coupling term - enforces the incompressibility constraint (continuity eqn.) in the weak form - ensures pressure is consistent w/ divergence of test function v
+    + div(u) * q * dx                    # Continuiy eqn. term - ensures that the velocity field u satisfies the incompressibility condition (divergence-free velocity field)
+    + tau * inner(grad(p), grad(q)) * dx # PSPG stabilization term
 )
 print(f"\nBilinear form of stokes equations with stabilization term: \n{a_P1P1}")
 L_P1P1 = dot(f_b, v) * dx  # linear form , ∇ ∙ u = 0 (incompressibility)
-#L_P1P1 += stabilization
+#L_P1P1 = (dot(f_b, v) * dx 
+        # + tau * inner(grad(p), grad(q)) * dx 
+#) - added later on to keep architecture of L_P1P1 in tact 
 print(f"\nLinear form of stokes equations with stabilization term: \n{L_P1P1}")
 
 ## Dirichlet Boundary Conditions
 inflow_bc = DirichletBC(W.sub(0), U_inlet, "near(x[0], 0)")    # Inflow boundary: Parabolic velocity profile
 walls_bc = DirichletBC(W.sub(0), Constant((0.0, 0.0)), "near(x[1], 0 || near(x[1], {H}))".format(H=H))   # Walls (top and bottom): No-slip condition
-#walls_bc = DirichletBC(W.sub(0), Constant((0.0, 0.0)), "near(x[1], 0) || near(x[1], H)")
 outflow_bc = DirichletBC(W.sub(1), Constant(0.0), "near(x[0], {L})".format(L=L)) # Outflow boundary: Pressure 
 bcs = [inflow_bc, walls_bc, outflow_bc] # Combine boundary conditions
 
@@ -220,28 +201,32 @@ solve(a_P1P1 == L_P1P1, w_P1P1, bcs) # Solve the linear system
 # P1P1 Velocity solutions
 velocity_magnitude = sqrt(dot(velocity_solution_P1P1, velocity_solution_P1P1))
 velocity_P1P1 = velocity_solution_P1P1.compute_vertex_values(mesh)
-print(f"\nVelocity: \n{velocity_P1P1}")    # error handling
+#print(f"\nVelocity: \n{velocity_P1P1}")    # error handling
 if not np.isfinite(velocity_P1P1).all():
     raise ValueError("\nVelocity contains non-finite values (NaN or Inf).")
 
 # P1P1 Pressure solutions 
 pressure_P1P1 = pressure_solution_P1P1.compute_vertex_values(mesh)
-print(f"\nPressure: \n{pressure_P1P1}\n")    # error handling
+#print(f"\nPressure: \n{pressure_P1P1}\n")    # error handling
 if not np.isfinite(pressure_P1P1).all():
     raise ValueError("\nPressure contains non-finite values (NaN or Inf).")
 
-# P1P1 - Compute the numerical pressure gradient along the centerline
+## P1P1 - Compute the numerical pressure gradient along the centerline
 print("\nThe pressure gradient provides the slope of the pressure curve.")
+
 # Pressure - example of an analytical solution
 p_o = 16   # initial pressure
 p_f = 0 # final pressure (analytical solution)
 print(f"Pressure Gradient Analytical Solution:\n    - If the initial pressure: p_o = {p_o}psi, then the final pressure: p_f = {p_f}psi")
 print(f"    - This is because of the formula:  p = p_o - 2 * L\n")
-# Compute analytical pressure gradient
-#dp/dx = -2 * μ * U_max / (H**2)
+
+# Compute analytical pressure gradient: dp/dx = -2 * μ * U_max / (H**2)
 analytical_pressure_gradient = -2 * μ * U_max / (H**2)
-print(f"Analytical Pressure Gradient = dp/dx = {analytical_pressure_gradient}")
+print(f"Analytical Pressure Gradient = dp/dx = -2 * μ * U_max / (H**2) = {analytical_pressure_gradient}")
+
+# Compute the numerical pressure gradient 
 x_coords = np.linspace(0, L, 100)  # Sample x-coordinates along the channel
+y_centerline = H / 2               # y coordinates along the centerline 
 pressure_gradient_P1P1 = (pressure_solution_P1P1(Point(x_coords[-1], H/2)) - pressure_solution_P1P1(Point(x_coords[0], H/2))) / L
 print(f"Numerical Pressure Gradient: {pressure_gradient_P1P1:.4f}")
 
@@ -263,10 +248,30 @@ print(f"\nVelocity solution plot: \n{velocity_solution_P1P1}")
 plt.figure()
 plot_u_P1P1 = plot(velocity_solution_P1P1*4, title="Velocity Field for P1P1", cmap=cm.viridis)  # Use a colormap
 plt.colorbar(plot_u_P1P1, label="Velocity value")  # Attach the colorbar to the mappable object
-plt.xlabel("x")
-plt.ylabel("y")
+plt.xlabel("x (Length along channel)", fontsize=12)
+plt.ylabel("y (Height of channel)", fontsize=12)
 # Save the plot 
 filename = f"Velocity Field for P1P1.png"
+save_path = os.path.join(save_folder, filename)
+plt.savefig(save_path)
+print(f"\nGraph saved as {save_path}.\n")
+plt.show()
+
+# P1P1 - Velocity profile at centerline
+print(f"\nVelocity profile at the centerline:\n")
+y_coords = np.linspace(0, H, 100)  # Sample y-coordinates from bottom to top of the channel
+x_centerline = L / 2
+u_centerline = [velocity_solution_P1P1(Point(x_centerline, y))[0] for y in y_coords]  # extract the velocity values along the centerline 
+# Plot
+plt.figure()
+plt.plot(u_centerline, y_coords, label="Velocity Profile at the Centerline", color='blue') 
+plt.xlabel("u_x (Velocity at the centerline)", fontsize=12)
+plt.ylabel("y (Height of channel)", fontsize=12)
+plt.title("P1P1 Velocity Profile at the Centerline", fontsize=14)
+plt.legend(fontsize=12)
+plt.grid(True)
+# Save the plot 
+filename = f"P1P1 Velocity Profile at the Centerline.png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
 print(f"\nGraph saved as {save_path}.\n")
@@ -277,8 +282,8 @@ print(f"\nPressure solution plot: \n{pressure_solution_P1P1}\n")
 plt.figure()
 plot_p_P1P1 = plot(pressure_solution_P1P1, title="Pressure Field for P1P1", cmap=cm.viridis)  # Use a colormap
 plt.colorbar(plot_p_P1P1, label="Pressure value")  # Attach the colorbar to the mappable object
-plt.xlabel("x")
-plt.ylabel("y")
+plt.xlabel("x (Length along channel)", fontsize=12)
+plt.ylabel("y (Height of channel)", fontsize=12)
 # Save the plot 
 filename = f"Pressure Field for P1P1.png"
 save_path = os.path.join(save_folder, filename)
@@ -349,7 +354,7 @@ print(f"\nInflow velocity profile: {U_inlet}\n")
 
 # Compute the velocity components across the domain
 U_x = U_max * Y * (H - Y) / (H**2)  # Parabolic velocity profile in x-direction
-U_y = np.zeros_like(Y)                    # Zero velocity in the y-direction
+U_y = np.zeros_like(Y)              # Zero velocity in the y-direction
 print("\nAnalytical solution for inflow velocity:\n")
 print(f"Parabolic inflow velocity in the x-direction:\n \n{U_x}\n")
 print(f"Parabolic inflow velocity in the y-direction:\n \n{U_y}\n")
@@ -358,15 +363,14 @@ print(f"Parabolic inflow velocity in the y-direction:\n \n{U_y}\n")
 
 # Define the bilinear form for Stokes equations
 a_stokes = (
-    mu * inner(grad(u), grad(v)) * dx        # Viscous term
-    - div(v) * p * dx                    #
-    + div(u) * q * dx                      #
+    mu * inner(grad(u), grad(v)) * dx    # Viscous term - represents the viscous forces in the momentum eqn. - acounts for the diffusion of momentum due to viscosity(mu)
+    - div(v) * p * dx                    # Pressure-velocity coupling term - enforces the incompressibility constraint (continuity eqn.) in the weak form - ensures pressure is consistent w/ divergence of test function v
+    + div(u) * q * dx                    # Continuiy eqn. term - ensures that the velocity field u satisfies the incompressibility condition (divergence-free velocity field)
 )
 print(f"\nBilinear form of stokes equations:\n {a_stokes}")
 # Define the linear form (forcing term)
 f_b = Constant((0.0, 0.0))  # Zero body force for 2D flow 
 L_stokes = dot(f_b, v) * dx  # linear form , ∇ ∙ u = 0 (incompressibility)
-#L_stokes = dot(Constant((0.0, 0.0)), v) * dx  # linear form , ∇ ∙ u = 0 (incompressibility)
 print(f"\nLinear form of stokes equations:\n {L_stokes}\n") 
 
 ## Dirichlet Boundary Conditions
@@ -397,12 +401,11 @@ if not np.isfinite(pressure_Q2Q1).all():
 
 # Compute the numerical pressure gradient along the centerline
 #print("\nThe pressure gradient provides the slope of the pressure curve.")
+# Analytical pressure gradient - dp/dx = -2 * μ * U_max / (H**2)
+print(f"Analytical Pressure Gradient = dp/dx = {analytical_pressure_gradient}") # solved in part a
 x_coords_Q2Q1 = np.linspace(0, L, 100)  # Sample x-coordinates along the channel
 pressure_gradient_Q2Q1 = (pressure_solution_Q2Q1(Point(x_coords[-1], H/2)) - pressure_solution_Q2Q1(Point(x_coords[0], H/2))) / L
 print(f"Numerical Pressure Gradient: {pressure_gradient_Q2Q1:.4f}")
-
-# Analytical pressure gradient - dp/dx = -2 * μ * U_max / (H**2)
-print(f"Analytical Pressure Gradient = dp/dx = {analytical_pressure_gradient}") # solved in part a
 
 # Relative error between numerical and analytical pressure gradients
 relative_error_Q2Q1 = abs((pressure_gradient_Q2Q1 - analytical_pressure_gradient) / analytical_pressure_gradient) * 100
@@ -417,10 +420,30 @@ print(f"\nVelocity solution plot: \n{velocity_solution_Q2Q1}")
 plt.figure()
 plot_u = plot(velocity_solution_Q2Q1*4, title="Velocity Field for Q2Q1", cmap=cm.viridis)  # Use a colormap
 plt.colorbar(plot_u, label="Velocity value")  # Attach the colorbar to the mappable object
-plt.xlabel("x")
-plt.ylabel("y")
+plt.xlabel("x (Length along channel)", fontsize=12)
+plt.ylabel("y (Height of channel)", fontsize=12)
 # Save the plot 
 filename = f"Velocity Field for Q2Q1.png"
+save_path = os.path.join(save_folder, filename)
+plt.savefig(save_path)
+print(f"\nGraph saved as {save_path}.\n")
+plt.show()
+
+# Q2Q1 - Velocity profile at centerline
+print(f"\nVelocity profile at the centerline:\n")
+y_coords = np.linspace(0, H, 100)  # Sample y-coordinates from bottom to top of the channel
+x_centerline = L / 2
+u_centerline = [velocity_solution_Q2Q1(Point(x_centerline, y))[0] for y in y_coords]  # extract the velocity values along the centerline 
+# Plot
+plt.figure()
+plt.plot(u_centerline, y_coords, label="Velocity Profile at the Centerline", color='blue') 
+plt.xlabel("u_x (Velocity at the centerline)", fontsize=12)
+plt.ylabel("y (Height of channel)", fontsize=12)
+plt.title("Q2Q1 Velocity Profile at the Centerline", fontsize=14)
+plt.legend(fontsize=12)
+plt.grid(True)
+# Save the plot 
+filename = f"Q2Q1 Velocity Profile at the Centerline.png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
 print(f"\nGraph saved as {save_path}.\n")
@@ -431,8 +454,8 @@ print(f"\nPressure solution plot: \n{pressure_solution_Q2Q1}\n")
 plt.figure()
 plot_p = plot(pressure_solution_Q2Q1, title="Pressure Field for Q2Q1", cmap=cm.viridis)  # Use a colormap
 plt.colorbar(plot_p, label="Pressure value")  # Attach the colorbar to the mappable object
-plt.xlabel("x")
-plt.ylabel("y")
+plt.xlabel("x (Length along channel)", fontsize=12)
+plt.ylabel("y (Height of channel)", fontsize=12)
 # Save the plot 
 filename = f"Pressure Field for Q2Q1.png"
 save_path = os.path.join(save_folder, filename)
