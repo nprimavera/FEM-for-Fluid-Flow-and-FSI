@@ -99,7 +99,9 @@ print("\nSolving part (a): Running simulation with P1P1 linear elements (equal-o
 - Parts (c) and (d) plots are included
 """
 
-# Create a rectangular mesh with a specified number of elements
+# Create a rectangular mesh with a specified number of elements - CHANGE COMMENTS DEPENDING ON WHICH MESH SIZE YOU ARE SOLVING 
+#nx, ny = 240, 30  # Elements along x and y directions
+#nx, ny = 160, 20  # Elements along x and y directions
 nx, ny = 80, 10  # Elements along x and y directions
 mesh = RectangleMesh(Point(0, 0), Point(L, H), nx, ny)
 
@@ -199,7 +201,6 @@ solve(a_P1P1 == L_P1P1, w_P1P1, bcs) # Solve the linear system
 (velocity_solution_P1P1, pressure_solution_P1P1) = w_P1P1.split()  # Extract velocity and pressure solutions
 
 # P1P1 Velocity solutions
-velocity_magnitude = sqrt(dot(velocity_solution_P1P1, velocity_solution_P1P1))
 velocity_P1P1 = velocity_solution_P1P1.compute_vertex_values(mesh)
 #print(f"\nVelocity: \n{velocity_P1P1}")    # error handling
 if not np.isfinite(velocity_P1P1).all():
@@ -213,17 +214,14 @@ if not np.isfinite(pressure_P1P1).all():
 
 ## P1P1 - Compute the numerical pressure gradient along the centerline
 print("\nThe pressure gradient provides the slope of the pressure curve.")
-
 # Pressure - example of an analytical solution
 p_o = 16   # initial pressure
 p_f = 0 # final pressure (analytical solution)
 print(f"Pressure Gradient Analytical Solution:\n    - If the initial pressure: p_o = {p_o}psi, then the final pressure: p_f = {p_f}psi")
 print(f"    - This is because of the formula:  p = p_o - 2 * L\n")
-
 # Compute analytical pressure gradient: dp/dx = -2 * μ * U_max / (H**2)
 analytical_pressure_gradient = -2 * μ * U_max / (H**2)
 print(f"Analytical Pressure Gradient = dp/dx = -2 * μ * U_max / (H**2) = {analytical_pressure_gradient}")
-
 # Compute the numerical pressure gradient 
 x_coords = np.linspace(0, L, 100)  # Sample x-coordinates along the channel
 y_centerline = H / 2               # y coordinates along the centerline 
@@ -246,12 +244,12 @@ if not os.path.exists(save_folder):
 # P1P1 - Plot velocity field (magnitude)
 print(f"\nVelocity solution plot: \n{velocity_solution_P1P1}")
 plt.figure()
-plot_u_P1P1 = plot(velocity_solution_P1P1*4, title="Velocity Field for P1P1", cmap=cm.viridis)  # Use a colormap
+plot_u_P1P1 = plot(velocity_solution_P1P1, title=f"P1P1 Velocity Field for mesh ({nx}, {ny})", cmap=cm.viridis)  # Use a colormap
 plt.colorbar(plot_u_P1P1, label="Velocity value")  # Attach the colorbar to the mappable object
 plt.xlabel("x (Length along channel)", fontsize=12)
 plt.ylabel("y (Height of channel)", fontsize=12)
 # Save the plot 
-filename = f"Velocity Field for P1P1.png"
+filename = f"P1P1 Velocity Field for mesh {nx} x {ny}.png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
 print(f"\nGraph saved as {save_path}.\n")
@@ -264,14 +262,14 @@ x_centerline = L / 2
 u_centerline = [velocity_solution_P1P1(Point(x_centerline, y))[0] for y in y_coords]  # extract the velocity values along the centerline 
 # Plot
 plt.figure()
-plt.plot(u_centerline, y_coords, label="Velocity Profile at the Centerline", color='blue') 
+plt.plot(u_centerline, y_coords, label=f"Velocity Profile at the Centerline", color='blue') 
 plt.xlabel("u_x (Velocity at the centerline)", fontsize=12)
 plt.ylabel("y (Height of channel)", fontsize=12)
-plt.title("P1P1 Velocity Profile at the Centerline", fontsize=14)
+plt.title(f"P1P1 Velocity Profile at the Centerline for mesh ({nx}, {ny})", fontsize=14)
 plt.legend(fontsize=12)
 plt.grid(True)
 # Save the plot 
-filename = f"P1P1 Velocity Profile at the Centerline.png"
+filename = f"P1P1 Velocity Profile at the Centerline for mesh ({nx}, {ny}).png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
 print(f"\nGraph saved as {save_path}.\n")
@@ -280,12 +278,12 @@ plt.show()
 # P1P1 - Plot pressure field
 print(f"\nPressure solution plot: \n{pressure_solution_P1P1}\n")
 plt.figure()
-plot_p_P1P1 = plot(pressure_solution_P1P1, title="Pressure Field for P1P1", cmap=cm.viridis)  # Use a colormap
+plot_p_P1P1 = plot(pressure_solution_P1P1, title=f"P1P1 Pressure Field for mesh ({nx}, {ny})", cmap=cm.viridis)  # Use a colormap
 plt.colorbar(plot_p_P1P1, label="Pressure value")  # Attach the colorbar to the mappable object
 plt.xlabel("x (Length along channel)", fontsize=12)
 plt.ylabel("y (Height of channel)", fontsize=12)
 # Save the plot 
-filename = f"Pressure Field for P1P1.png"
+filename = f"P1P1 Pressure Field for mesh ({nx}, {ny}).png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
 print(f"\nGraph saved as {save_path}.\n")
@@ -308,11 +306,11 @@ plt.plot(x_coords, numerical_pressure_P1P1, label="Numerical Pressure (P1P1)", c
 plt.plot(x_coords, analytical_pressure_P1P1, label="Analytical Pressure", color="red", linestyle="--", linewidth=2)
 plt.xlabel("x (Length along channel)", fontsize=12)
 plt.ylabel("Pressure (psi)", fontsize=12)
-plt.title("Pressure Distribution Along the Centerline of the Channel for P1P1", fontsize=14)
+plt.title(f"P1P1 Pressure Distribution along the Centerline of the Channel for mesh ({nx}, {ny})", fontsize=14)
 plt.grid(True)
 plt.legend(fontsize=12)
 # Save the plot 
-filename = f"Pressure Distribution Along the Centerline of the Channel for P1P1.png"
+filename = f"P1P1 Pressure Distribution along the Centerline of the Channel for mesh ({nx}, {ny}).png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
 print(f"\nGraph saved as {save_path}.\n")
@@ -326,8 +324,8 @@ plt.show()
 print(f"\nSolving part (b): Running simulation with Q2Q1 elements. \nVelocity functions (Q2) are biquadratic elements (9-noded quadrilateral) and pressure functions (Q1) are bilinear elements (4-noded quadrilateral).")
 
 # Mesh
-nx, ny = 80, 10  # Elements along x and y directions
-mesh = RectangleMesh(Point(0, 0), Point(L, H), nx, ny)
+#nx, ny = 80, 10  # Elements along x and y directions
+#mesh = RectangleMesh(Point(0, 0), Point(L, H), nx, ny)
 
 # Define function spaces for Q2Q1 
 # Q2Q1: Quadratic elements for velocity and linear elements for pressure
@@ -418,12 +416,12 @@ print(F"Relative error for velocity: {error:.4f}%\n")
 # Plot velocity field (magnitude)
 print(f"\nVelocity solution plot: \n{velocity_solution_Q2Q1}")
 plt.figure()
-plot_u = plot(velocity_solution_Q2Q1*4, title="Velocity Field for Q2Q1", cmap=cm.viridis)  # Use a colormap
+plot_u = plot(velocity_solution_Q2Q1, title=f"Q2Q1 Velocity Field for mesh ({nx}, {ny})", cmap=cm.viridis)  # Use a colormap
 plt.colorbar(plot_u, label="Velocity value")  # Attach the colorbar to the mappable object
 plt.xlabel("x (Length along channel)", fontsize=12)
 plt.ylabel("y (Height of channel)", fontsize=12)
 # Save the plot 
-filename = f"Velocity Field for Q2Q1.png"
+filename = f"Q2Q1 Velocity Field for mesh ({nx}, {ny}).png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
 print(f"\nGraph saved as {save_path}.\n")
@@ -439,11 +437,11 @@ plt.figure()
 plt.plot(u_centerline, y_coords, label="Velocity Profile at the Centerline", color='blue') 
 plt.xlabel("u_x (Velocity at the centerline)", fontsize=12)
 plt.ylabel("y (Height of channel)", fontsize=12)
-plt.title("Q2Q1 Velocity Profile at the Centerline", fontsize=14)
+plt.title(f"Q2Q1 Velocity Profile at the Centerline for mesh ({nx}, {ny})", fontsize=14)
 plt.legend(fontsize=12)
 plt.grid(True)
 # Save the plot 
-filename = f"Q2Q1 Velocity Profile at the Centerline.png"
+filename = f"Q2Q1 Velocity Profile at the Centerline for mesh ({nx}, {ny}).png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
 print(f"\nGraph saved as {save_path}.\n")
@@ -452,12 +450,12 @@ plt.show()
 # Plot pressure field
 print(f"\nPressure solution plot: \n{pressure_solution_Q2Q1}\n")
 plt.figure()
-plot_p = plot(pressure_solution_Q2Q1, title="Pressure Field for Q2Q1", cmap=cm.viridis)  # Use a colormap
+plot_p = plot(pressure_solution_Q2Q1, title=f"Q2Q1 Pressure Field for mesh ({nx}, {ny})", cmap=cm.viridis)  # Use a colormap
 plt.colorbar(plot_p, label="Pressure value")  # Attach the colorbar to the mappable object
 plt.xlabel("x (Length along channel)", fontsize=12)
 plt.ylabel("y (Height of channel)", fontsize=12)
 # Save the plot 
-filename = f"Pressure Field for Q2Q1.png"
+filename = f"Q2Q1 Pressure Field for mesh ({nx}, {ny}).png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
 print(f"\nGraph saved as {save_path}.\n")
@@ -476,15 +474,15 @@ for x in x_coords:
 
 # Plot the pressure distributions
 plt.figure(figsize=(10, 6))
-plt.plot(x_coords, numerical_pressure_Q2Q1, label="Numerical Pressure (P1P1)", color="blue", linewidth=2)
+plt.plot(x_coords, numerical_pressure_Q2Q1, label="Numerical Pressure (Q2Q1)", color="blue", linewidth=2)
 plt.plot(x_coords, analytical_pressure_Q2Q1, label="Analytical Pressure", color="red", linestyle="--", linewidth=2)
 plt.xlabel("x (Length along channel)", fontsize=12)
 plt.ylabel("Pressure (psi)", fontsize=12)
-plt.title("Pressure Distribution Along the Centerline of the Channel for Q2Q1", fontsize=14)
+plt.title(f"Q2Q1 Pressure Distribution along the Centerline of the Channel for mesh ({nx}, {ny})", fontsize=14)
 plt.grid(True)
 plt.legend(fontsize=12)
 # Save the plot 
-filename = f"Pressure Distribution Along the Centerline of the Channel for Q2Q1.png"
+filename = f"Q2Q1 Pressure Distribution along the Centerline of the Channel for mesh ({nx}, {ny}).png"
 save_path = os.path.join(save_folder, filename)
 plt.savefig(save_path)
 print(f"Graph saved as {save_path}.\n")
